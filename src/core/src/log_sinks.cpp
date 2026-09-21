@@ -19,6 +19,8 @@
 #include <fcntl.h>    // open, O_*
 #include <sys/stat.h> // S_IRUSR, S_IWUSR
 #include <unistd.h>   // close
+#else
+#include <share.h>    // _SH_DENYNO
 #endif
 
 namespace ajazz::core {
@@ -115,12 +117,9 @@ FileSink::FileSink(std::string path) : path_(std::move(path)) {
     // responsible for rotation/truncation policy. A failed open leaves
     // file_ == nullptr and write() degrades to a no-op.
 #if defined(_MSC_VER)
-    // MSVC treats std::fopen as deprecated (C4996 -> /WX hard error); use the
-    // bounds-checked fopen_s. The glibc-only "e" (O_CLOEXEC) mode flag does not
-    // exist on Windows, so the mode is plain "a" here.
-    if (::fopen_s(&file_, path_.c_str(), "a") != 0) {
-        file_ = nullptr;
-    }
+    // Use _fsopen with _SH_DENYNO so external log tailers / diagnostics can read
+    // the active log file without triggering Windows ERROR_SHARING_VIOLATION.
+    file_ = ::_fsopen(path_.c_str(), "a", _SH_DENYNO);
 #else
     // POSIX: open(2) instead of fopen(3) so the create mode is explicit.
     // fopen creates with 0666 & ~umask, which goes world-writable under a
