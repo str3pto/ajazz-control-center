@@ -118,7 +118,11 @@ QString defaultSidecarBinary() {
     if (!env.isEmpty()) {
         return env;
     }
+#ifdef Q_OS_WIN
+    QString const beside = QCoreApplication::applicationDirPath() + "/streamdock-host.exe";
+#else
     QString const beside = QCoreApplication::applicationDirPath() + "/streamdock-host";
+#endif
     if (QFileInfo::exists(beside)) {
         return beside;
     }
