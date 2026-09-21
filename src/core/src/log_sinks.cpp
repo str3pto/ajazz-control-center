@@ -20,7 +20,7 @@
 #include <sys/stat.h> // S_IRUSR, S_IWUSR
 #include <unistd.h>   // close
 #else
-#include <share.h>    // _SH_DENYNO
+#include <share.h> // _SH_DENYNO
 #endif
 
 namespace ajazz::core {
