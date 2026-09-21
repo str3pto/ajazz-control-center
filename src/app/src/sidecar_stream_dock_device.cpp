@@ -27,12 +27,14 @@ namespace {
 /// PROVISIONAL — verify against the panel in Slice 4 (the render_test photo
 /// confirmed the raw index->surface mapping renders; this row remap is the
 /// piece that pairs our grid order to it).
-[[nodiscard]] std::uint8_t hwKeyForKeyIndex(std::uint8_t oneBased) {
-    if (oneBased >= 1 && oneBased <= 5) {
-        return static_cast<std::uint8_t>(oneBased + 9); // 1->10 .. 5->14
-    }
-    if (oneBased >= 6 && oneBased <= 10) {
-        return static_cast<std::uint8_t>(oneBased - 1); // 6->5 .. 10->9
+[[nodiscard]] std::uint8_t hwKeyForKeyIndex(std::uint8_t oneBased, std::size_t totalKeyCount) {
+    if (totalKeyCount == 10) {
+        if (oneBased >= 1 && oneBased <= 5) {
+            return static_cast<std::uint8_t>(oneBased + 9); // 1->10 .. 5->14
+        }
+        if (oneBased >= 6 && oneBased <= 10) {
+            return static_cast<std::uint8_t>(oneBased - 1); // 6->5 .. 10->9
+        }
     }
     return oneBased;
 }
@@ -102,8 +104,8 @@ namespace {
         return e;
 
     default:
-        // Physical LCD keys report their 1-based index directly (1..10).
-        if (code >= 1 && code <= 10) {
+        // Physical LCD keys report their 1-based index directly (1..15).
+        if (code >= 1 && code <= 15) {
             e = {state ? Kind::KeyPressed : Kind::KeyReleased, code, state};
             return e;
         }
@@ -251,7 +253,7 @@ void SidecarStreamDockDevice::setKeyImage(std::uint8_t keyIndex,
         return;
     }
     writeCommand(sidecar::buildSetImage(effectiveSerial(),
-                                        hwKeyForKeyIndex(keyIndex),
+                                        hwKeyForKeyIndex(keyIndex, m_descriptor.keyCount),
                                         /*touchzone=*/false,
                                         width,
                                         height,
