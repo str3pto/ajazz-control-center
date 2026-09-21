@@ -52,7 +52,7 @@ struct SidecarContract {
 
 /// Mirror of streamdock-host/src/kind.rs::params_for, restricted to the fields the
 /// app descriptor must agree with. Edit IN LOCKSTEP with kind.rs.
-constexpr std::array<SidecarContract, 19> kSidecarContract = {{
+constexpr std::array<SidecarContract, 20> kSidecarContract = {{
     // --- AKP05 / N4 (pv3): 10 keys + 4 zones + 1 dead = 15 wire slots, 4 encoders.
     {0x0300, 0x3004, 15, 4, 1}, // Ajazz AKP05E (hardware-confirmed)
     {0x0300, 0x5001, 15, 4, 1}, // Ajazz AKP05 (provisional)
