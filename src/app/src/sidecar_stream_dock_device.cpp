@@ -36,7 +36,10 @@ namespace {
             return static_cast<std::uint8_t>(oneBased - 1); // 6->5 .. 10->9
         }
     }
-    return oneBased;
+    if (oneBased >= 1) {
+        return static_cast<std::uint8_t>(oneBased - 1);
+    }
+    return 0;
 }
 
 /// Translate a sidecar (code,state) pair into a core::DeviceEvent.
@@ -250,10 +253,19 @@ void SidecarStreamDockDevice::setKeyImage(std::uint8_t keyIndex,
                                           std::uint16_t width,
                                           std::uint16_t height) {
     if (!isOpen()) {
+        AJAZZ_LOG_WARN("sidecar", "setKeyImage: device not open for keyIndex={}", keyIndex);
         return;
     }
+    auto const hwKey = hwKeyForKeyIndex(keyIndex, m_descriptor.keyCount);
+    AJAZZ_LOG_INFO("sidecar",
+                   "setKeyImage: keyIndex={} -> hwKey={} (w={} h={} bytes={})",
+                   keyIndex,
+                   hwKey,
+                   width,
+                   height,
+                   rgba.size());
     writeCommand(sidecar::buildSetImage(effectiveSerial(),
-                                        hwKeyForKeyIndex(keyIndex, m_descriptor.keyCount),
+                                        hwKey,
                                         /*touchzone=*/false,
                                         width,
                                         height,
@@ -440,6 +452,9 @@ void SidecarStreamDockDevice::handleLine(QByteArray const& line) {
     }
     case Type::Error:
         AJAZZ_LOG_WARN("sidecar", "sidecar error: {}", ev->message.toStdString());
+        break;
+    case Type::Ok:
+        AJAZZ_LOG_DEBUG("sidecar", "sidecar command acknowledged");
         break;
     default:
         break;
