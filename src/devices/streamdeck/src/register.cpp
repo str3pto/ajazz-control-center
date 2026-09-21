@@ -96,6 +96,7 @@ std::vector<core::DeviceDescriptor> streamDockSidecarDescriptors() {
     out.push_back(akp153(0x0300, 0x1002, "AJAZZ AKP153E", "akp153e"));
     out.push_back(akp153(0x5548, 0x6674, "AJAZZ AKP153 (Mirabox V1)", "akp153_v1"));
     out.push_back(akp153(0x0300, 0x1010, "AJAZZ AKP153E (Mirabox V2)", "akp153e_v2"));
+    out.push_back(akp153(0x0300, 0x3010, "AJAZZ AKP153E (PID 0x3010)", "akp153e_v3"));
     out.push_back(akp153(0x0300, 0x1020, "AJAZZ AKP153R", "akp153r"));
     // AKP03 / N3 family (6 LCD keys + 3 side buttons + 3 encoders).
     out.push_back(akp03(0x0300, 0x3001, "AJAZZ AKP03 (legacy firmware)", "akp03_legacy"));

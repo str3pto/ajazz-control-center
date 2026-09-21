@@ -104,6 +104,18 @@ devices:
     protocol_doc: docs/protocols/streamdeck/akp153.md
     notes: "Canonical AKP153E PID per ajazz-sdk; same protocol as AKP153."
 
+  - codename: akp153e_v3
+    family: streamdeck
+    name: "AJAZZ AKP153E (PID 0x3010)"
+    vid: "0x0300"
+    pid: "0x3010"
+    keys: 15
+    encoders: 0
+    maturity: functional
+    capabilities: [display, rgb, macros, firmware, clock]
+    protocol_doc: docs/protocols/streamdeck/akp153.md
+    notes: "Hardware-confirmed AKP153E variant with PID 0x3010."
+
   - codename: akp153r
     family: streamdeck
     name: "AJAZZ AKP153R"

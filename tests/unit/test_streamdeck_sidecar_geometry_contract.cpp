@@ -74,6 +74,7 @@ constexpr std::array<SidecarContract, 19> kSidecarContract = {{
     {0x0300, 0x1002, 15, 0, 0}, // Ajazz AKP153E
     {0x5548, 0x6674, 15, 0, 0}, // Ajazz AKP153 (Mirabox V1)
     {0x0300, 0x1010, 15, 0, 0}, // Ajazz AKP153E (V2)
+    {0x0300, 0x3010, 15, 0, 0}, // Ajazz AKP153E (3010)
     {0x0300, 0x1020, 15, 0, 0}, // Ajazz AKP153R
 }};
 
