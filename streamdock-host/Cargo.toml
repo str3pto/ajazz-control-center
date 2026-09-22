@@ -27,6 +27,7 @@ serde_json = "1"
 # image 0.25 matches the version mirajazz uses; DynamicImage flows into set_button_image.
 image = { version = "0.25", default-features = false }
 base64 = "0.22"
+hidapi = "2.6"
 
 [[bin]]
 name = "streamdock-host"

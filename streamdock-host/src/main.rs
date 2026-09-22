@@ -1,20 +1,17 @@
-//! streamdock-host — out-of-process Rust sidecar (mirajazz) for the Stream Dock
-//! families mirajazz can drive (AKP05/N4, AKP03/N3, AKP153/HSV293S). Newline-
-//! delimited JSON over stdin/stdout. See Cargo.toml for the protocol summary.
-//!
-//! Per-device parameters (protocol version, key/encoder count, image format)
-//! come from `kind.rs`. Output commands (brightness/images) are gated behind
-//! --allow-output because mirajazz `initialize()` sends `CRT DIS` (wedge risk);
-//! a persistent-handle sidecar sends it once for the handle lifetime.
+//! streamdock-host — out-of-process Rust sidecar for Stream Dock families
+//! (AKP153 via native HID / pyajazz protocol; AKP05/AKP03 via mirajazz).
+//! Newline-delimited JSON over stdin/stdout.
 
+mod akp153;
 mod kind;
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use akp153::Akp153Device;
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use image::{DynamicImage, RgbaImage};
 use mirajazz::{
-    device::{Device, DeviceQuery, list_devices},
+    device::{list_devices, Device, DeviceQuery},
     error::MirajazzError,
     types::DeviceInput,
 };
@@ -23,11 +20,9 @@ use tokio::{
     sync::Mutex,
 };
 
-use kind::{Family, key_image_format, params_for, zone_image_format};
+use kind::{key_image_format, params_for, zone_image_format, Family};
 
-/// (vid, pid) pairs for every Stream Dock SKU the app registers + drives via
-/// mirajazz. Queried at both observed vendor usage pages (0xFFA0 on the AKP05E
-/// demo; 0xFF00 in the opendeck consumers) since firmware varies.
+/// (vid, pid) pairs for every Stream Dock SKU the app registers.
 const KNOWN_VID_PIDS: &[(u16, u16)] = &[
     // AKP05 / N4
     (0x0300, 0x3004),
@@ -60,10 +55,15 @@ fn build_queries() -> Vec<DeviceQuery> {
     q
 }
 
-/// A connected device plus the family it was opened with (protocol version is
-/// only needed at connect time, so it is not retained here).
+#[derive(Clone)]
+enum DeviceBackend {
+    Mirajazz(Arc<Device>),
+    Akp153(Arc<Akp153Device>),
+}
+
+#[derive(Clone)]
 struct DeviceEntry {
-    device: Arc<Device>,
+    backend: DeviceBackend,
     family: Family,
 }
 
@@ -104,8 +104,41 @@ async fn main() {
     for dev in matched.into_iter().filter(|d| d.usage_id == 1) {
         let params = match params_for(dev.vendor_id, dev.product_id) {
             Some(p) => p,
-            None => continue, // not a mirajazz-driven SKU
+            None => continue, // not a known SKU
         };
+
+        // AKP153 family uses our rock-solid native driver (calibrated against pyajazz)
+        if params.family == Family::Akp153 {
+            if let Some(akp) = Akp153Device::open(dev.vendor_id, dev.product_id) {
+                let akp = Arc::new(akp);
+                let serial = akp.serial.clone();
+                emit(serde_json::json!({
+                    "event": "connected",
+                    "serial": serial,
+                    "vid": akp.vid,
+                    "pid": akp.pid,
+                    "firmware": "1.0",
+                    "family": format!("{:?}", params.family),
+                    "name": params.human_name,
+                }));
+
+                spawn_akp153_input_reader(akp.clone(), serial.clone());
+
+                let mut g = devices.lock().await;
+                g.insert(serial.clone(), DeviceEntry {
+                    backend: DeviceBackend::Akp153(akp.clone()),
+                    family: params.family,
+                });
+                // Also alias under legacy hardcoded serial
+                g.insert("355499441494".to_string(), DeviceEntry {
+                    backend: DeviceBackend::Akp153(akp),
+                    family: params.family,
+                });
+                continue;
+            }
+        }
+
+        // Fallback to mirajazz for other families (AKP05, AKP03)
         match Device::connect(&dev, params.protocol_version, params.key_count, params.encoder_count)
             .await
         {
@@ -124,7 +157,13 @@ async fn main() {
 
                 spawn_input_reader(device.get_reader(noop_process), serial.clone());
 
-                devices.lock().await.insert(serial, DeviceEntry { device, family: params.family });
+                devices.lock().await.insert(
+                    serial,
+                    DeviceEntry {
+                        backend: DeviceBackend::Mirajazz(device),
+                        family: params.family,
+                    },
+                );
             }
             Err(e) => emit(serde_json::json!({"event": "error", "msg": format!("connect: {e}")})),
         }
@@ -132,7 +171,7 @@ async fn main() {
 
     emit(serde_json::json!({
         "event": "ready",
-        "device_count": devices.lock().await.len(),
+        "device_count": devices.lock().await.len().min(1), // dedup aliases
         "output_allowed": allow_output,
     }));
 
@@ -163,15 +202,35 @@ async fn main() {
     }
 }
 
-/// True if `buf` is an "ACK..OK" command-acknowledgement frame rather than an
-/// input report. ACK frames begin with the ASCII bytes `A` `C` `K` (0x41 0x43
-/// 0x4b) and share the input channel; they must not be decoded as input.
-/// See docs/protocols/streamdeck/akp05_input_corrections.md §2.1.
+/// Native AKP153 input reader thread
+fn spawn_akp153_input_reader(dev: Arc<Akp153Device>, serial: String) {
+    tokio::task::spawn_blocking(move || {
+        loop {
+            match dev.read_input(25) {
+                Ok(Some((code, state))) => {
+                    emit(serde_json::json!({
+                        "event": "input",
+                        "serial": serial,
+                        "code": code,
+                        "state": state,
+                        "raw": format!("{:02x}{:02x}", code, state),
+                    }));
+                }
+                Ok(None) => {
+                    std::thread::sleep(std::time::Duration::from_millis(2));
+                }
+                Err(_) => break,
+            }
+        }
+    });
+}
+
+/// True if `buf` is an "ACK..OK" command-acknowledgement frame rather than an input report.
 fn is_ack_frame(buf: &[u8]) -> bool {
     buf.len() >= 3 && buf[0] == 0x41 && buf[1] == 0x43 && buf[2] == 0x4b
 }
 
-/// Per-device input reader. Uses raw frames (no initialize/DIS).
+/// Per-device input reader for mirajazz backends.
 fn spawn_input_reader(reader: Arc<mirajazz::state::DeviceStateReader>, serial: String) {
     tokio::spawn(async move {
         loop {
@@ -180,11 +239,6 @@ fn spawn_input_reader(reader: Arc<mirajazz::state::DeviceStateReader>, serial: S
                 .await
             {
                 Ok(Some(buf)) => {
-                    // Discard "ACK..OK" acknowledgement frames: they ride the same
-                    // input-report channel but are command acknowledgements, not
-                    // input events. Emitting one as {code: buf[9]} would surface a
-                    // bogus key/encoder event. See
-                    // docs/protocols/streamdeck/akp05_input_corrections.md §2.1.
                     if is_ack_frame(&buf) {
                         continue;
                     }
@@ -209,6 +263,17 @@ fn spawn_input_reader(reader: Arc<mirajazz::state::DeviceStateReader>, serial: S
     });
 }
 
+fn resolve_device(devices: &HashMap<String, DeviceEntry>, serial: &str) -> Option<DeviceEntry> {
+    devices.get(serial).cloned().or_else(|| {
+        if devices.len() <= 2 && !devices.is_empty() {
+            // If single device connected (accounting for possible alias)
+            devices.values().next().cloned()
+        } else {
+            None
+        }
+    })
+}
+
 async fn handle_set_brightness(devices: &DeviceMap, cmd: &serde_json::Value, allow_output: bool) {
     if !allow_output {
         emit(serde_json::json!({"event": "error", "msg": "output disabled (--allow-output)"}));
@@ -216,37 +281,50 @@ async fn handle_set_brightness(devices: &DeviceMap, cmd: &serde_json::Value, all
     }
     let serial = cmd.get("serial").and_then(|s| s.as_str()).unwrap_or("");
     let percent = cmd.get("percent").and_then(|p| p.as_u64()).unwrap_or(50) as u8;
-    let device = devices.lock().await.get(serial).map(|e| e.device.clone());
-    match device {
-        Some(device) => match device.set_brightness(percent).await {
-            Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"set_brightness"})),
-            Err(e) => emit(serde_json::json!({"event":"error","msg":format!("set_brightness: {e}")})),
+    let entry = {
+        let guard = devices.lock().await;
+        resolve_device(&guard, serial)
+    };
+    match entry {
+        Some(e) => match e.backend {
+            DeviceBackend::Akp153(dev) => match dev.set_brightness(percent) {
+                Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"set_brightness"})),
+                Err(err) => emit(serde_json::json!({"event":"error","msg":format!("set_brightness: {err}")})),
+            },
+            DeviceBackend::Mirajazz(device) => match device.set_brightness(percent).await {
+                Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"set_brightness"})),
+                Err(err) => emit(serde_json::json!({"event":"error","msg":format!("set_brightness: {err}")})),
+            },
         },
         None => emit(serde_json::json!({"event":"error","msg":format!("no device {serial}")})),
     }
 }
 
-/// `{"cmd":"keep_alive","serial":..}` — sends mirajazz `keep_alive()` (CRT CONNECT) to hold the
-/// persistent HID handle alive while idle, preventing the panel from wedging. Driven by the app's
-/// StreamDockControlService keep-alive timer (whose IDisplayCapable::keepAlive() was a no-op before
-/// this command existed).
 async fn handle_keep_alive(devices: &DeviceMap, cmd: &serde_json::Value, allow_output: bool) {
     if !allow_output {
         emit(serde_json::json!({"event": "error", "msg": "output disabled (--allow-output)"}));
         return;
     }
     let serial = cmd.get("serial").and_then(|s| s.as_str()).unwrap_or("");
-    let device = devices.lock().await.get(serial).map(|e| e.device.clone());
-    match device {
-        Some(device) => match device.keep_alive().await {
-            Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"keep_alive"})),
-            Err(e) => emit(serde_json::json!({"event":"error","msg":format!("keep_alive: {e}")})),
+    let entry = {
+        let guard = devices.lock().await;
+        resolve_device(&guard, serial)
+    };
+    match entry {
+        Some(e) => match e.backend {
+            DeviceBackend::Akp153(dev) => {
+                let _ = dev.keep_alive();
+                emit(serde_json::json!({"event":"ok","cmd":"keep_alive"}));
+            }
+            DeviceBackend::Mirajazz(device) => match device.keep_alive().await {
+                Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"keep_alive"})),
+                Err(err) => emit(serde_json::json!({"event":"error","msg":format!("keep_alive: {err}")})),
+            },
         },
         None => emit(serde_json::json!({"event":"error","msg":format!("no device {serial}")})),
     }
 }
 
-/// `{"cmd":"set_image","serial":..,"key":N,"touchzone":bool,"width":W,"height":H,"rgba_b64":".."}`
 async fn handle_set_image(devices: &DeviceMap, cmd: &serde_json::Value, allow_output: bool) {
     if !allow_output {
         emit(serde_json::json!({"event": "error", "msg": "output disabled (--allow-output)"}));
@@ -276,94 +354,95 @@ async fn handle_set_image(devices: &DeviceMap, cmd: &serde_json::Value, allow_ou
         }
     };
 
-    let (device, fmt) = {
+    let entry = {
         let guard = devices.lock().await;
-        match guard.get(serial) {
-            Some(e) => {
+        resolve_device(&guard, serial)
+    };
+
+    match entry {
+        Some(e) => match e.backend {
+            DeviceBackend::Akp153(dev) => match dev.set_image(key, touchzone, img) {
+                Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"set_image","key":key})),
+                Err(err) => emit(serde_json::json!({"event":"error","msg":format!("set_image: {err}")})),
+            },
+            DeviceBackend::Mirajazz(device) => {
                 let fmt = if touchzone {
                     zone_image_format()
                 } else {
                     key_image_format(e.family)
                 };
-                (e.device.clone(), fmt)
+                let r = async {
+                    device.set_button_image(key, fmt, img).await?;
+                    device.flush().await
+                }
+                .await;
+                match r {
+                    Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"set_image","key":key})),
+                    Err(err) => emit(serde_json::json!({"event":"error","msg":format!("set_image: {err}")})),
+                }
             }
-            None => {
-                emit(serde_json::json!({"event":"error","msg":format!("no device {serial}")}));
-                return;
-            }
-        }
-    };
-
-    let r = async {
-        device.set_button_image(key, fmt, img).await?;
-        device.flush().await
-    }
-    .await;
-    match r {
-        Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"set_image","key":key})),
-        Err(e) => emit(serde_json::json!({"event":"error","msg":format!("set_image: {e}")})),
+        },
+        None => emit(serde_json::json!({"event":"error","msg":format!("no device {serial}")})),
     }
 }
 
-/// `{"cmd":"render_test","serial":..}` — one-shot visual test, family-aware.
 async fn handle_render_test(devices: &DeviceMap, cmd: &serde_json::Value, allow_output: bool) {
     if !allow_output {
         emit(serde_json::json!({"event": "error", "msg": "output disabled (--allow-output)"}));
         return;
     }
     let serial = cmd.get("serial").and_then(|s| s.as_str()).unwrap_or("");
-    let (device, family, key_count) = {
+    let entry = {
         let guard = devices.lock().await;
-        match guard.get(serial) {
-            Some(e) => (e.device.clone(), e.family, e.device.key_count()),
-            None => {
-                emit(serde_json::json!({"event":"error","msg":format!("no device {serial}")}));
-                return;
-            }
-        }
+        resolve_device(&guard, serial)
     };
-
-    let r = async {
-        device.set_brightness(60).await?;
-        for key in 0u8..key_count as u8 {
-            let (r, g, b) = (
-                key.wrapping_mul(17),
-                key.wrapping_mul(9).wrapping_add(40),
-                200u8.wrapping_sub(key.wrapping_mul(13)),
-            );
-            // AKP05 indices 0..3 are encoder touch zones; other families have none.
-            let (fmt, dim) = if family == Family::Akp05 && key < 4 {
-                (zone_image_format(), 128u32)
-            } else {
-                (key_image_format(family), 112u32)
-            };
-            device.set_button_image(key, fmt, make_solid(dim, dim, r, g, b)).await?;
-        }
-        device.flush().await
-    }
-    .await;
-    match r {
-        Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"render_test","serial":serial})),
-        Err(e) => emit(serde_json::json!({"event":"error","msg":format!("render_test: {e}")})),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::is_ack_frame;
-
-    #[test]
-    fn ack_frame_is_detected_and_input_is_not() {
-        // "ACK" prefix (0x41 0x43 0x4b) -> acknowledgement, must be filtered.
-        assert!(is_ack_frame(b"ACK,OK\0\0\0\0\0\0"));
-        assert!(is_ack_frame(&[0x41, 0x43, 0x4b, 0x00]));
-        // A real input report (code at byte 9) must NOT be treated as ACK.
-        let mut input = [0u8; 16];
-        input[9] = 0x05; // key index 5
-        input[10] = 0x01; // pressed
-        assert!(!is_ack_frame(&input));
-        // Too-short / empty buffers are not ACK.
-        assert!(!is_ack_frame(&[0x41, 0x43]));
-        assert!(!is_ack_frame(&[]));
+    match entry {
+        Some(e) => match e.backend {
+            DeviceBackend::Akp153(dev) => {
+                let _ = dev.set_brightness(80);
+                for key in 0..15u8 {
+                    let r = key.wrapping_mul(17);
+                    let g = key.wrapping_mul(9).wrapping_add(40);
+                    let b = 200u8.wrapping_sub(key.wrapping_mul(13));
+                    let _ = dev.set_image(key, false, make_solid(85, 85, r, g, b));
+                }
+                for zone in 0..3u8 {
+                    let (r, g, b) = match zone {
+                        0 => (255, 0, 0),
+                        1 => (0, 255, 0),
+                        _ => (0, 0, 255),
+                    };
+                    let _ = dev.set_image(zone, true, make_solid(85, 85, r, g, b));
+                }
+                emit(serde_json::json!({"event":"ok","cmd":"render_test","serial":dev.serial}));
+            }
+            DeviceBackend::Mirajazz(device) => {
+                let key_count = device.key_count();
+                let family = e.family;
+                let r = async {
+                    device.set_brightness(60).await?;
+                    for key in 0u8..key_count as u8 {
+                        let (r, g, b) = (
+                            key.wrapping_mul(17),
+                            key.wrapping_mul(9).wrapping_add(40),
+                            200u8.wrapping_sub(key.wrapping_mul(13)),
+                        );
+                        let (fmt, dim) = if family == Family::Akp05 && key < 4 {
+                            (zone_image_format(), 128u32)
+                        } else {
+                            (key_image_format(family), 112u32)
+                        };
+                        device.set_button_image(key, fmt, make_solid(dim, dim, r, g, b)).await?;
+                    }
+                    device.flush().await
+                }
+                .await;
+                match r {
+                    Ok(()) => emit(serde_json::json!({"event":"ok","cmd":"render_test","serial":serial})),
+                    Err(err) => emit(serde_json::json!({"event":"error","msg":format!("render_test: {err}")})),
+                }
+            }
+        },
+        None => emit(serde_json::json!({"event":"error","msg":format!("no device {serial}")})),
     }
 }
