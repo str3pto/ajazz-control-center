@@ -133,11 +133,9 @@ namespace ajazz::plugins::win32 {
     // probing is safe even in a sandboxed process that cannot spawn.
     auto probeHardcoded = []() -> std::wstring {
         wchar_t localAppData[MAX_PATH] = {0};
-        DWORD const laLen = ::GetEnvironmentVariableW(
-            L"LOCALAPPDATA", localAppData, MAX_PATH);
+        DWORD const laLen = ::GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
         wchar_t progFiles[MAX_PATH] = {0};
-        DWORD const pfLen = ::GetEnvironmentVariableW(
-            L"ProgramFiles", progFiles, MAX_PATH);
+        DWORD const pfLen = ::GetEnvironmentVariableW(L"ProgramFiles", progFiles, MAX_PATH);
 
         // Candidate base directories (python.org and Scoop installer paths).
         std::vector<std::wstring> bases;
@@ -162,8 +160,7 @@ namespace ajazz::plugins::win32 {
                 // Try the base itself (Scoop layout has no version subdirectory).
                 std::wstring const direct = base + L"\\python.exe";
                 DWORD const attrs = ::GetFileAttributesW(direct.c_str());
-                if (attrs != INVALID_FILE_ATTRIBUTES &&
-                    (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
                     return direct;
                 }
                 continue;
@@ -179,8 +176,7 @@ namespace ajazz::plugins::win32 {
                 }
                 std::wstring candidate = base + L"\\" + name + L"\\python.exe";
                 DWORD const attrs = ::GetFileAttributesW(candidate.c_str());
-                if (attrs != INVALID_FILE_ATTRIBUTES &&
-                    (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
                     // Keep the lexicographically greatest version string.
                     if (best.empty() || name > best.substr(best.rfind(L'\\') + 1)) {
                         best = candidate;

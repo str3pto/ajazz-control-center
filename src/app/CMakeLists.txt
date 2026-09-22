@@ -897,28 +897,28 @@ target_compile_definitions(
 )
 
 if(AJAZZ_BUILD_PYTHON_HOST)
-    # Compile-time fallback paths — used only when the exe runs from the
-    # build directory (dev workflow). Installed/portable builds resolve the
-    # python dir at runtime relative to the executable (see initPluginHost()).
+    # Compile-time fallback paths — used only when the exe runs from the build directory (dev
+    # workflow). Installed/portable builds resolve the python dir at runtime relative to the
+    # executable (see initPluginHost()).
     target_compile_definitions(
         ajazz-control-center
         PRIVATE AJAZZ_PYTHON_HOST=1
                 AJAZZ_PLUGIN_HOST_SCRIPT="${CMAKE_SOURCE_DIR}/python/ajazz_plugins/_host_child.py"
                 AJAZZ_PLUGIN_PYTHONPATH="${CMAKE_SOURCE_DIR}/python"
     )
-    # Install the Python package alongside the app so portable ZIPs and
-    # packaged installs work without a source tree. The runtime resolver in
-    # initPluginHost() looks for python/ one level above the bin/ directory,
-    # which matches this layout: <prefix>/python/ajazz_plugins/_host_child.py.
+    # Install the Python package alongside the app so portable ZIPs and packaged installs work
+    # without a source tree. The runtime resolver in initPluginHost() looks for python/ one level
+    # above the bin/ directory, which matches this layout:
+    # <prefix>/python/ajazz_plugins/_host_child.py.
     install(
         DIRECTORY "${CMAKE_SOURCE_DIR}/python/"
         DESTINATION "python"
         COMPONENT Runtime
         FILES_MATCHING
-            PATTERN "*.py"
-            PATTERN "__pycache__" EXCLUDE
-            PATTERN "tests" EXCLUDE
-            PATTERN "examples" EXCLUDE
+        PATTERN "*.py"
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "tests" EXCLUDE
+        PATTERN "examples" EXCLUDE
     )
 endif()
 

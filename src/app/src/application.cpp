@@ -1314,8 +1314,7 @@ void Application::initPluginHost() {
     //   3. <exe>/../../share/ajazz-control-center/python (FHS installed layout)
     //   4. AJAZZ_PLUGIN_PYTHONPATH compile-time fallback (source-tree dev builds)
     auto resolvePythonDir = []() -> std::filesystem::path {
-        auto const hostScriptRelPath =
-            std::filesystem::path{"ajazz_plugins"} / "_host_child.py";
+        auto const hostScriptRelPath = std::filesystem::path{"ajazz_plugins"} / "_host_child.py";
 
         // 1. Explicit env override.
         if (char const* env = std::getenv("AJAZZ_PLUGIN_PYTHON_DIR"); env && *env) {
@@ -1326,8 +1325,7 @@ void Application::initPluginHost() {
         }
 
         // 2 & 3. Relative to the running executable directory.
-        std::filesystem::path const exeDir{
-            QCoreApplication::applicationDirPath().toStdString()};
+        std::filesystem::path const exeDir{QCoreApplication::applicationDirPath().toStdString()};
         for (auto const& rel : {
                  // Portable ZIP: python/ sits one level up from bin/
                  std::filesystem::path{".."} / "python",
@@ -1351,7 +1349,7 @@ void Application::initPluginHost() {
 
     plugins::OutOfProcessHostConfig config;
     config.childScript = (pythonDir / "ajazz_plugins" / "_host_child.py").string();
-    config.pythonPath  = {pythonDir};
+    config.pythonPath = {pythonDir};
 
     plugins::ManifestSignerConfig verifier;
     verifier.verifierScript = AJAZZ_PLUGIN_VERIFIER_SCRIPT;
