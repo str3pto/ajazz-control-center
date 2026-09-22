@@ -69,13 +69,13 @@ constexpr std::array<SidecarContract, 20> kSidecarContract = {{
     {0x6602, 0x1003, 9, 3, 3}, // Mirabox N3E
     {0x6603, 0x1002, 9, 3, 3}, // Mirabox N3 (rev.3)
     {0x6603, 0x1003, 9, 3, 3}, // Mirabox N3EN
-    // --- AKP153 / HSV293S (pv1): 15 keys, no encoders, no strip.
-    {0x0300, 0x1001, 15, 0, 0}, // Ajazz AKP153
-    {0x0300, 0x1002, 15, 0, 0}, // Ajazz AKP153E
-    {0x5548, 0x6674, 15, 0, 0}, // Ajazz AKP153 (Mirabox V1)
-    {0x0300, 0x1010, 15, 0, 0}, // Ajazz AKP153E (V2)
-    {0x0300, 0x3010, 15, 0, 0}, // Ajazz AKP153E (3010)
-    {0x0300, 0x1020, 15, 0, 0}, // Ajazz AKP153R
+    // --- AKP153 / HSV293S (pv1): 15 keys + 3 side strip zones = 18 wire slots, no encoders.
+    {0x0300, 0x1001, 18, 0, 0}, // Ajazz AKP153
+    {0x0300, 0x1002, 18, 0, 0}, // Ajazz AKP153E
+    {0x5548, 0x6674, 18, 0, 0}, // Ajazz AKP153 (Mirabox V1)
+    {0x0300, 0x1010, 18, 0, 0}, // Ajazz AKP153E (V2)
+    {0x0300, 0x3010, 18, 0, 0}, // Ajazz AKP153E (3010)
+    {0x0300, 0x1020, 18, 0, 0}, // Ajazz AKP153R
 }};
 
 } // namespace

@@ -15,7 +15,7 @@ macOS). It is an independent, clean-room project and is not affiliated
 with, endorsed by, or supported by AJAZZ.
 
 <!-- BEGIN AUTOGEN: stats -->
-**35 devices** across 1 dongle, 3 keyboard, 10 mouse, 21 streamdeck — 12 functional, 19 scaffolded, 2 probed, 2 partial.
+**35 devices** across 1 dongle, 3 keyboard, 10 mouse, 21 streamdeck — 13 functional, 2 probed, 18 scaffolded, 2 partial.
 <!-- END AUTOGEN: stats -->
 
 ## Screenshots

@@ -64,9 +64,9 @@ devices:
     keys: 15
     encoders: 0
     maturity: functional
-    capabilities: [display, rgb, macros, firmware, clock]
+    capabilities: [display, rgb, touch, macros, firmware, clock]
     protocol_doc: docs/protocols/streamdeck/akp153.md
-    notes: "Reference 3x5 grid; 85x85 JPEG keys (Rot90+mirror). Legacy VID:PID kept for compatibility; the canonical Mirabox V1 pair is 0x5548:0x6674 (also registered)."
+    notes: "Reference 3x5 grid; 85x85 JPEG keys (Rot90+mirror). 3-zone vertical LCD side strip (slots 16..18). Legacy VID:PID kept for compatibility; the canonical Mirabox V1 pair is 0x5548:0x6674 (also registered)."
 
   - codename: akp153_v1
     family: streamdeck
@@ -76,7 +76,7 @@ devices:
     keys: 15
     encoders: 0
     maturity: functional
-    capabilities: [display, rgb, macros, firmware, clock]
+    capabilities: [display, rgb, touch, macros, firmware, clock]
     protocol_doc: docs/protocols/streamdeck/akp153.md
     notes: "Canonical USB pair per ajazz-sdk for the AKP153 with Mirabox V1 firmware."
 
@@ -88,7 +88,7 @@ devices:
     keys: 15
     encoders: 0
     maturity: functional
-    capabilities: [display, rgb, macros, firmware, clock]
+    capabilities: [display, rgb, touch, macros, firmware, clock]
     protocol_doc: docs/protocols/streamdeck/akp153.md
     notes: "Legacy VID:PID; canonical AKP153E PID per ajazz-sdk is 0x1010 (also registered as `akp153e_v2`)."
 
@@ -100,7 +100,7 @@ devices:
     keys: 15
     encoders: 0
     maturity: functional
-    capabilities: [display, rgb, macros, firmware, clock]
+    capabilities: [display, rgb, touch, macros, firmware, clock]
     protocol_doc: docs/protocols/streamdeck/akp153.md
     notes: "Canonical AKP153E PID per ajazz-sdk; same protocol as AKP153."
 
@@ -112,7 +112,7 @@ devices:
     keys: 15
     encoders: 0
     maturity: functional
-    capabilities: [display, rgb, macros, firmware, clock]
+    capabilities: [display, rgb, touch, macros, firmware, clock]
     protocol_doc: docs/protocols/streamdeck/akp153.md
     notes: "Hardware-confirmed AKP153E variant with PID 0x3010."
 
@@ -123,8 +123,8 @@ devices:
     pid: "0x1020"
     keys: 15
     encoders: 0
-    maturity: scaffolded
-    capabilities: [display, rgb, macros, firmware, clock]
+    maturity: functional
+    capabilities: [display, rgb, touch, macros, firmware, clock]
     protocol_doc: docs/protocols/streamdeck/akp153.md
     notes: "Regional revision per ajazz-sdk. Protocol identical to AKP153; capture pending to confirm firmware quirks."
 

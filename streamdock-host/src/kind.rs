@@ -63,13 +63,13 @@ pub fn params_for(vid: u16, pid: u16) -> Option<DeviceParams> {
         (0x6602, 0x1003) => p(Family::Akp03, 2, 9, 3, "Mirabox N3E"),
         (0x6603, 0x1002) => p(Family::Akp03, 2, 9, 3, "Mirabox N3 (rev.3)"),
         (0x6603, 0x1003) => p(Family::Akp03, 2, 9, 3, "Mirabox N3EN"),
-        // --- AKP153 / HSV293S (pv1, 15 keys, no enc) — PROVISIONAL, no hardware ---
-        (0x0300, 0x1001) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153"),
-        (0x0300, 0x1002) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153E"),
-        (0x5548, 0x6674) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153 (Mirabox V1)"),
-        (0x0300, 0x1010) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153E (V2)"),
-        (0x0300, 0x3010) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153E (3010)"),
-        (0x0300, 0x1020) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153R"),
+        // --- AKP153 / HSV293S (pv1, 15 keys + 3 side strip zones = 18 wire slots, no enc) ---
+        (0x0300, 0x1001) => p(Family::Akp153, 1, 18, 0, "Ajazz AKP153"),
+        (0x0300, 0x1002) => p(Family::Akp153, 1, 18, 0, "Ajazz AKP153E"),
+        (0x5548, 0x6674) => p(Family::Akp153, 1, 18, 0, "Ajazz AKP153 (Mirabox V1)"),
+        (0x0300, 0x1010) => p(Family::Akp153, 1, 18, 0, "Ajazz AKP153E (V2)"),
+        (0x0300, 0x3010) => p(Family::Akp153, 1, 18, 0, "Ajazz AKP153E (3010)"),
+        (0x0300, 0x1020) => p(Family::Akp153, 1, 18, 0, "Ajazz AKP153R"),
         _ => None,
     }
 }
@@ -146,21 +146,21 @@ mod tests {
     }
 
     #[test]
-    fn akp153_is_pv1_no_encoders_15_keys() {
+    fn akp153_is_pv1_no_encoders_18_keys() {
         let p = params_for(0x5548, 0x6674).expect("AKP153 known");
         assert_eq!(p.family, Family::Akp153);
         assert_eq!(p.protocol_version, 1);
         assert_eq!(p.encoder_count, 0);
-        assert_eq!(p.key_count, 15); // parity with our descriptor, not opendeck's 18
+        assert_eq!(p.key_count, 18);
     }
 
     #[test]
-    fn akp153e_3010_is_pv1_no_encoders_15_keys() {
+    fn akp153e_3010_is_pv1_no_encoders_18_keys() {
         let p = params_for(0x0300, 0x3010).expect("AKP153E 3010 known");
         assert_eq!(p.family, Family::Akp153);
         assert_eq!(p.protocol_version, 1);
         assert_eq!(p.encoder_count, 0);
-        assert_eq!(p.key_count, 15);
+        assert_eq!(p.key_count, 18);
     }
 
     #[test]

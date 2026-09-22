@@ -64,7 +64,9 @@ std::vector<core::DeviceDescriptor> streamDockSidecarDescriptors() {
                                 .keyCount = 15,
                                 .gridColumns = 5,
                                 .encoderCount = 0,
-                                .keyRows = 3};
+                                .hasTouchStrip = true,
+                                .keyRows = 3,
+                                .touchZoneCount = 3};
     };
     auto akp03 = [](std::uint16_t vid, std::uint16_t pid, char const* model, char const* code) {
         return DeviceDescriptor{.vendorId = vid,

@@ -105,11 +105,7 @@ impl Akp153Device {
                 other => 16 + other.min(2),
             }
         } else {
-            let idx = if key >= 1 && key <= 15 {
-                (key - 1) as usize
-            } else {
-                (key as usize).min(14)
-            };
+            let idx = (key as usize).min(14);
             UI_INDEX_TO_SLOT[idx]
         };
 

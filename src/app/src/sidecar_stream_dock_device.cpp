@@ -36,23 +36,6 @@ namespace {
             return static_cast<std::uint8_t>(oneBased - 1); // 6->5 .. 10->9
         }
     }
-    if (totalKeyCount == 15) {
-        // AKP153 physical grid is 3 rows x 5 columns:
-        // UI Key (1-based row-major):
-        //  1   2   3   4   5
-        //  6   7   8   9  10
-        // 11  12  13  14  15
-        // Mirajazz device slot indices:
-        // 12   9   6   3   0
-        // 13  10   7   4   1
-        // 14  11   8   5   2
-        // Note: Mirajazz send_image writes wire byte (key + 1).
-        if (oneBased >= 1 && oneBased <= 15) {
-            constexpr std::array<std::uint8_t, 15> map = {
-                12, 9, 6, 3, 0, 13, 10, 7, 4, 1, 14, 11, 8, 5, 2};
-            return map[oneBased - 1];
-        }
-    }
     if (oneBased >= 1) {
         return static_cast<std::uint8_t>(oneBased - 1);
     }
