@@ -68,7 +68,7 @@ pub fn params_for(vid: u16, pid: u16) -> Option<DeviceParams> {
         (0x0300, 0x1002) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153E"),
         (0x5548, 0x6674) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153 (Mirabox V1)"),
         (0x0300, 0x1010) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153E (V2)"),
-        (0x0300, 0x3010) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153E (3010)"),
+        (0x0300, 0x3010) => p(Family::Akp05, 3, 15, 0, "Ajazz AKP153E (3010)"),
         (0x0300, 0x1020) => p(Family::Akp153, 1, 15, 0, "Ajazz AKP153R"),
         _ => None,
     }
@@ -152,6 +152,15 @@ mod tests {
         assert_eq!(p.protocol_version, 1);
         assert_eq!(p.encoder_count, 0);
         assert_eq!(p.key_count, 15); // parity with our descriptor, not opendeck's 18
+    }
+
+    #[test]
+    fn akp153e_3010_is_pv3_no_encoders_15_keys() {
+        let p = params_for(0x0300, 0x3010).expect("AKP153E 3010 known");
+        assert_eq!(p.family, Family::Akp05);
+        assert_eq!(p.protocol_version, 3);
+        assert_eq!(p.encoder_count, 0);
+        assert_eq!(p.key_count, 15);
     }
 
     #[test]
