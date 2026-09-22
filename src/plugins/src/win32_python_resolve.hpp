@@ -124,7 +124,86 @@ namespace ajazz::plugins::win32 {
         }
         return hit;
     }
-    return fallback.empty() ? preferred : fallback;
+
+    // PATH search found nothing usable (only WindowsApps stubs). Try the
+    // python.org installer's default locations under %LOCALAPPDATA% and
+    // %PROGRAMFILES% before giving up.  We iterate a small fixed list of
+    // well-known versioned subdirectories (newest first) and return the
+    // first real python.exe we can stat — without executing it, so this
+    // probing is safe even in a sandboxed process that cannot spawn.
+    auto probeHardcoded = []() -> std::wstring {
+        wchar_t localAppData[MAX_PATH] = {0};
+        DWORD const laLen = ::GetEnvironmentVariableW(
+            L"LOCALAPPDATA", localAppData, MAX_PATH);
+        wchar_t progFiles[MAX_PATH] = {0};
+        DWORD const pfLen = ::GetEnvironmentVariableW(
+            L"ProgramFiles", progFiles, MAX_PATH);
+
+        // Candidate base directories (python.org and Scoop installer paths).
+        std::vector<std::wstring> bases;
+        if (laLen > 0 && laLen < MAX_PATH) {
+            bases.push_back(std::wstring{localAppData} + L"\\Programs\\Python");
+        }
+        if (pfLen > 0 && pfLen < MAX_PATH) {
+            bases.push_back(std::wstring{progFiles} + L"\\Python");
+        }
+        // Scoop installs Python under %USERPROFILE%\scoop\apps\python\current
+        wchar_t userProfile[MAX_PATH] = {0};
+        if (::GetEnvironmentVariableW(L"USERPROFILE", userProfile, MAX_PATH) > 0) {
+            bases.push_back(std::wstring{userProfile} + L"\\scoop\\apps\\python\\current");
+        }
+
+        // Prefer newer minor versions — Windows FindFirstFile returns names in
+        // filesystem order, which is lexicographic, so "Python313" > "Python311".
+        for (auto const& base : bases) {
+            WIN32_FIND_DATAW fd{};
+            HANDLE const hFind = ::FindFirstFileW((base + L"\\Python3*").c_str(), &fd);
+            if (hFind == INVALID_HANDLE_VALUE) {
+                // Try the base itself (Scoop layout has no version subdirectory).
+                std::wstring const direct = base + L"\\python.exe";
+                DWORD const attrs = ::GetFileAttributesW(direct.c_str());
+                if (attrs != INVALID_FILE_ATTRIBUTES &&
+                    (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                    return direct;
+                }
+                continue;
+            }
+            std::wstring best;
+            do {
+                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                    continue; // skip files, only want subdirs
+                }
+                std::wstring name{fd.cFileName};
+                if (name == L"." || name == L"..") {
+                    continue;
+                }
+                std::wstring candidate = base + L"\\" + name + L"\\python.exe";
+                DWORD const attrs = ::GetFileAttributesW(candidate.c_str());
+                if (attrs != INVALID_FILE_ATTRIBUTES &&
+                    (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+                    // Keep the lexicographically greatest version string.
+                    if (best.empty() || name > best.substr(best.rfind(L'\\') + 1)) {
+                        best = candidate;
+                    }
+                }
+            } while (::FindNextFileW(hFind, &fd));
+            ::FindClose(hFind);
+            if (!best.empty()) {
+                return best;
+            }
+        }
+        return {};
+    };
+
+    if (!fallback.empty()) {
+        // We have a real Store-installed Python — that's fine; use it.
+        return fallback;
+    }
+    std::wstring const hardcoded = probeHardcoded();
+    if (!hardcoded.empty()) {
+        return hardcoded;
+    }
+    return preferred;
 }
 
 /// UTF-8 convenience wrapper around @ref resolveRealPythonW. Returns

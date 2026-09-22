@@ -1305,9 +1305,53 @@ void Application::bootstrap() {
 
 #ifdef AJAZZ_PYTHON_HOST
 void Application::initPluginHost() {
+    // Resolve the Python package directory at runtime so installed/portable
+    // builds find the files regardless of where the CI built them.
+    //
+    // Search order:
+    //   1. Env override AJAZZ_PLUGIN_PYTHON_DIR          (dev / testing)
+    //   2. <exe>/../python/                              (portable ZIP layout)
+    //   3. <exe>/../../share/ajazz-control-center/python (FHS installed layout)
+    //   4. AJAZZ_PLUGIN_PYTHONPATH compile-time fallback (source-tree dev builds)
+    auto resolvePythonDir = []() -> std::filesystem::path {
+        auto const hostScriptRelPath =
+            std::filesystem::path{"ajazz_plugins"} / "_host_child.py";
+
+        // 1. Explicit env override.
+        if (char const* env = std::getenv("AJAZZ_PLUGIN_PYTHON_DIR"); env && *env) {
+            std::filesystem::path p{env};
+            if (std::filesystem::exists(p / hostScriptRelPath)) {
+                return p;
+            }
+        }
+
+        // 2 & 3. Relative to the running executable directory.
+        std::filesystem::path const exeDir{
+            QCoreApplication::applicationDirPath().toStdString()};
+        for (auto const& rel : {
+                 // Portable ZIP: python/ sits one level up from bin/
+                 std::filesystem::path{".."} / "python",
+                 // FHS installed: <prefix>/share/ajazz-control-center/python/
+                 std::filesystem::path{".."} / "share" / "ajazz-control-center" / "python",
+             }) {
+            std::filesystem::path candidate = exeDir / rel;
+            std::error_code ec;
+            candidate = std::filesystem::canonical(candidate, ec);
+            if (!ec && std::filesystem::exists(candidate / hostScriptRelPath)) {
+                return candidate;
+            }
+        }
+
+        // 4. Compile-time fallback: source-tree dev builds only.
+        return std::filesystem::path{AJAZZ_PLUGIN_PYTHONPATH};
+    };
+
+    std::filesystem::path const pythonDir = resolvePythonDir();
+    AJAZZ_LOG_INFO("app", "plugin host: python dir resolved to {}", pythonDir.string());
+
     plugins::OutOfProcessHostConfig config;
-    config.childScript = AJAZZ_PLUGIN_HOST_SCRIPT;
-    config.pythonPath = {std::filesystem::path{AJAZZ_PLUGIN_PYTHONPATH}};
+    config.childScript = (pythonDir / "ajazz_plugins" / "_host_child.py").string();
+    config.pythonPath  = {pythonDir};
 
     plugins::ManifestSignerConfig verifier;
     verifier.verifierScript = AJAZZ_PLUGIN_VERIFIER_SCRIPT;
@@ -1332,7 +1376,7 @@ void Application::initPluginHost() {
     // it can load plugin code). The sandbox adds the system trees and
     // the child-script parent on top; `$HOME` stays hidden.
     [[maybe_unused]] std::vector<std::filesystem::path> readablePaths{
-        std::filesystem::path{AJAZZ_PLUGIN_PYTHONPATH},
+        pythonDir,
         std::filesystem::path{userPluginsQ.toStdString()},
     };
 #if !defined(_WIN32)
