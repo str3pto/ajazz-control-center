@@ -49,10 +49,7 @@ namespace {
         // Note: Mirajazz send_image writes wire byte (key + 1).
         if (oneBased >= 1 && oneBased <= 15) {
             constexpr std::array<std::uint8_t, 15> map = {
-                12, 9, 6, 3, 0,
-                13, 10, 7, 4, 1,
-                14, 11, 8, 5, 2
-            };
+                12, 9, 6, 3, 0, 13, 10, 7, 4, 1, 14, 11, 8, 5, 2};
             return map[oneBased - 1];
         }
     }
