@@ -90,11 +90,11 @@ pub fn key_image_format(family: Family) -> ImageFormat {
             rotation: ImageRotation::Rot90,
             mirror: ImageMirroring::None,
         },
-        // Every AKP153 SKU the app registers is pv1 (85x85 Rot90, mirror both).
+        // Every AKP153 SKU the app registers is pv1 (85x85 Rot270, mirror both for upright orientation).
         Family::Akp153 => ImageFormat {
             mode: ImageMode::JPEG,
             size: (85, 85),
-            rotation: ImageRotation::Rot90,
+            rotation: ImageRotation::Rot270,
             mirror: ImageMirroring::Both,
         },
     }
@@ -176,10 +176,10 @@ mod tests {
     }
 
     #[test]
-    fn akp153_is_85_rot90_mirror_both() {
+    fn akp153_is_85_rot270_mirror_both() {
         let f = key_image_format(Family::Akp153);
         assert_eq!(f.size, (85, 85));
-        assert!(matches!(f.rotation, ImageRotation::Rot90));
+        assert!(matches!(f.rotation, ImageRotation::Rot270));
         assert!(matches!(f.mirror, ImageMirroring::Both));
     }
 
